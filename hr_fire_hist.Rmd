@@ -1,0 +1,85 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+
+source("flat_fire_functions.R")
+```
+
+```{r}
+fires <- read_csv("data/high_rise_fires.csv") %>% 
+  janitor::clean_names()
+
+fires
+```
+
+```{r}
+fires_processed <- fires %>% 
+  select(year, building, height_floors, min_floor_fire, max_floor_fire, description) %>% 
+  na.omit() %>% 
+  group_by(year) %>% 
+  mutate(fire_num_in_year = 1:n()) %>% 
+  ungroup() %>% 
+  complete(year = 1991:2021) %>% 
+  mutate(fire_num_in_year = replace_na(fire_num_in_year, 0),
+         id = str_c(year, fire_num_in_year, sep = "_")) %>% 
+  mutate(id = str_replace(id, "_NA", "")) %>% 
+  mutate(height_floors = replace_na(height_floors, 0))
+
+fires_processed
+```
+
+```{r}
+floors_df <- fires_processed %>% 
+  
+  # create individual floors for the plotting effect
+  uncount(height_floors) 
+
+tower_labels <- fires_processed %>% 
+  filter(!is.na(building)) %>% 
+  distinct(id, building, height_floors) %>% 
+  mutate(building = str_replace(building, ", ", "\n"))
+
+
+floors_df %>% 
+
+  group_by(id) %>% 
+  mutate(floor_num = 1:n()) %>% 
+  ungroup() %>% 
+  
+  mutate(on_fire = (floor_num >= min_floor_fire & floor_num <= max_floor_fire)) %>% 
+  
+  complete(year = 1991:2021) %>% 
+  mutate(fire_num_in_year = replace_na(fire_num_in_year, 0),
+         id = str_c(year, fire_num_in_year, sep = "_")) %>% 
+  mutate(id = str_replace(id, "_NA", "")) %>% 
+  arrange(id, floor_num) %>% 
+  
+  ggplot(aes(x = factor(id), y = 1)) +
+  geom_col(aes(fill = on_fire), colour = "white") +
+  
+  ggrepel::geom_text_repel(data = tower_labels,
+                           mapping = aes(id, height_floors + 2, label = building),
+                           max.overlaps = 20, size = 2) +
+  
+  labs(x = NULL) +
+  
+  explanatory_theme_2() +
+  
+  theme(legend.position = "none",
+        axis.text.y = element_blank(),
+        panel.grid.major.y = element_blank())
+
+ggsave("flat_fires.svg", , units = "mm", width = 250, height = 93.3)       
+```
+
+```{r}
+mtcars %>%
+  mutate(cyl = factor(cyl), am = factor(am)) %>%
+  ggplot(aes(x = cyl, y = 1, fill = am)) +
+  geom_col(color = "white")
+```
+
